@@ -180,8 +180,8 @@ where
 
         Dispatcher {
             inner: DispatcherState::Normal(InnerDispatcher {
-                read_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
-                write_buf: BytesMut::with_capacity(HW_BUFFER_SIZE),
+                read_buf: BytesMut::new(),
+                write_buf: BytesMut::new(),
                 payload: None,
                 state: State::None,
                 error: None,
