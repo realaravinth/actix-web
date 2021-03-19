@@ -851,13 +851,15 @@ where
 
                 if inner.flags.contains(Flags::SHUTDOWN) {
                     if inner.flags.contains(Flags::WRITE_DISCONNECT) {
+                        trace!("Dispatcher shutdown by dropping");
                         Poll::Ready(Ok(()))
                     } else {
                         // flush buffer and wait on blocked.
                         ready!(inner.as_mut().poll_flush(cx))?;
-                        Pin::new(inner.project().io.as_mut().unwrap())
-                            .poll_shutdown(cx)
-                            .map_err(DispatchError::from)
+                        ready!(Pin::new(inner.project().io.as_mut().unwrap())
+                            .poll_shutdown(cx))?;
+                        trace!("Dispatcher shutdown by flush and poll shutdown stream");
+                        Poll::Ready(Ok(()))
                     }
                 } else {
                     // read from io stream and fill read buffer.
