@@ -52,6 +52,9 @@ pub mod h2;
 pub mod test;
 pub mod ws;
 
+#[cfg(feature = "http3")]
+pub mod h3;
+
 pub use self::builder::HttpServiceBuilder;
 pub use self::config::{KeepAlive, ServiceConfig};
 pub use self::error::{Error, ResponseError};

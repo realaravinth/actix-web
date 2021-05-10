@@ -395,6 +395,16 @@ pub enum DispatchError {
     #[display(fmt = "{}", _0)]
     H2(h2::Error),
 
+    /// Http/3 error
+    #[cfg(feature = "http3")]
+    #[display(fmt = "{}", _0)]
+    H3(h3::Error),
+
+    /// Http/3 quinn error
+    #[cfg(feature = "http3")]
+    #[display(fmt = "{}", _0)]
+    H3Connection(h3_quinn::quinn::ConnectionError),
+
     /// The first request did not complete within the specified timeout.
     #[display(fmt = "The first request did not complete within the specified timeout")]
     SlowRequestTimeout,
