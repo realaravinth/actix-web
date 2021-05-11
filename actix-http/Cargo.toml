@@ -84,7 +84,7 @@ flate2 = { version = "1.0.13", optional = true }
 trust-dns-resolver = { version = "0.20.0", optional = true }
 
 # HTTP/3
-actix-server-alt = { path = "../../actix-server-new", default-features = false, optional = true }
+actix-server-alt = { git = "https://github.com/fakeshadow/actix-server-alt", branch = "main", default-features = false, optional = true }
 h3 = { git = "https://github.com/hyperium/h3", optional = true }
 h3-quinn = { git = "https://github.com/hyperium/h3", optional = true }
 
