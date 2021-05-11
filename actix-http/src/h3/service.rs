@@ -25,14 +25,14 @@ use crate::{ConnectCallback, OnConnectData};
 use super::dispatcher::{Connection, Dispatcher};
 
 /// `ServiceFactory` implementation for HTTP/3 transport
-pub struct H3Service<S, B> {
+pub struct H3Service<S, B, T = UdpStream> {
     srv: S,
     cfg: ServiceConfig,
-    on_connect_ext: Option<Rc<ConnectCallback<UdpStream>>>,
+    on_connect_ext: Option<Rc<ConnectCallback<T>>>,
     _phantom: PhantomData<B>,
 }
 
-impl<S, B> H3Service<S, B>
+impl<S, B, T> H3Service<S, B, T>
 where
     S: ServiceFactory<Request, Config = ()>,
     S::Error: Into<Error> + 'static,
@@ -56,10 +56,7 @@ where
     }
 
     /// Set on connect callback.
-    pub(crate) fn on_connect_ext(
-        mut self,
-        f: Option<Rc<ConnectCallback<UdpStream>>>,
-    ) -> Self {
+    pub(crate) fn on_connect_ext(mut self, f: Option<Rc<ConnectCallback<T>>>) -> Self {
         self.on_connect_ext = f;
         self
     }
@@ -68,6 +65,7 @@ where
 impl<S, B> H3Service<S, B>
 where
     S: ServiceFactory<Request, Config = ()>,
+    S::Service: 'static,
     S::Future: 'static,
     S::Error: Into<Error> + 'static,
     S::Response: Into<Response<B>> + 'static,
@@ -98,6 +96,7 @@ where
 impl<S, B> ServiceFactory<(UdpStream, Option<net::SocketAddr>)> for H3Service<S, B>
 where
     S: ServiceFactory<Request, Config = ()>,
+    S::Service: 'static,
     S::Future: 'static,
     S::Error: Into<Error> + 'static,
     S::Response: Into<Response<B>> + 'static,
@@ -160,7 +159,7 @@ where
 
 impl<S, B> Service<(UdpStream, Option<net::SocketAddr>)> for H3ServiceHandler<S, B>
 where
-    S: Service<Request>,
+    S: Service<Request> + 'static,
     S::Error: Into<Error> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,
@@ -244,7 +243,7 @@ where
 
 impl<S, B> Future for H3ServiceHandlerResponse<S, B>
 where
-    S: Service<Request>,
+    S: Service<Request> + 'static,
     S::Error: Into<Error> + 'static,
     S::Future: 'static,
     S::Response: Into<Response<B>> + 'static,

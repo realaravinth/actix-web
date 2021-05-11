@@ -222,6 +222,30 @@ where
             .on_connect_ext(self.on_connect_ext)
     }
 
+    #[cfg(feature = "http3")]
+    /// Finish service configuration and create a HTTP service for HTTP/3 protocol.
+    pub fn h3<F, B>(self, service: F) -> crate::h3::H3Service<S, B, T>
+    where
+        F: IntoServiceFactory<S, Request>,
+        S::Error: Into<Error> + 'static,
+        S::InitError: fmt::Debug,
+        S::Response: Into<Response<B>> + 'static,
+
+        B: MessageBody + 'static,
+        B::Error: Into<Error>,
+    {
+        let cfg = ServiceConfig::new(
+            self.keep_alive,
+            self.client_timeout,
+            self.client_disconnect,
+            self.secure,
+            self.local_addr,
+        );
+
+        crate::h3::H3Service::with_config(cfg, service.into_factory())
+            .on_connect_ext(self.on_connect_ext)
+    }
+
     /// Finish service configuration and create `HttpService` instance.
     pub fn finish<F, B>(self, service: F) -> HttpService<T, S, B, X, U>
     where
