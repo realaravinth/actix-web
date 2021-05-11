@@ -2,9 +2,10 @@ use std::{marker::PhantomData, net, rc::Rc};
 
 use actix_service::Service;
 use actix_utils::future::poll_fn;
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use futures_core::future::LocalBoxFuture;
-use h3::server;
+use h3::quic::SendStream;
+use h3::server::{self, RequestStream};
 use h3_quinn::quinn::crypto::rustls::TlsSession;
 use http::header::{HeaderValue, CONNECTION, CONTENT_LENGTH, DATE, TRANSFER_ENCODING};
 
@@ -33,7 +34,9 @@ where
     S: Service<Request> + 'static,
     S::Error: Into<Error>,
     S::Response: Into<Response<B>>,
+
     B: MessageBody,
+    B::Error: Into<Error>,
 {
     pub(super) fn new(
         flow: Rc<HttpFlow<S, (), ()>>,
@@ -64,38 +67,63 @@ where
                 // merge on_connect_ext data into request extensions
                 on_connect_data.merge_into(&mut req);
 
-                let res = flow.service.call(req);
+                let fut = flow.service.call(req);
                 let config = config.clone();
 
                 actix_rt::spawn(async move {
-                    match res.await {
+                    let res = match fut.await {
                         Ok(res) => {
                             let (res, body) = res.into().replace_body(());
-
-                            let mut size = body.size();
-                            let res = prepare_response(&config, res.head(), &mut size);
-
-                            stream.send_response(res).await.unwrap();
-
-                            actix_rt::pin!(body);
-
-                            while let Some(Ok(chunk)) =
-                                poll_fn(|cx| MessageBody::poll_next(body.as_mut(), cx))
-                                    .await
-                            {
-                                stream.send_data(chunk).await.unwrap();
-                            }
+                            handle_response(res, body, &mut stream, config).await
                         }
-                        Err(_) => panic!("service call error"),
+                        Err(err) => {
+                            let (res, body) =
+                                Response::from_error(err.into()).replace_body(());
+                            handle_response(res, body, &mut stream, config).await
+                        }
                     };
 
-                    stream.finish().await.unwrap();
+                    if let Err(err) = res {
+                        error!("{:?}", err);
+                    }
+
+                    // TODO: Should call stream finish after an DispatchError?
+                    if let Err(err) = stream.finish().await {
+                        error!("Error finishing RequestStream: {:?}", err);
+                    }
                 });
             }
 
             Ok(())
         })
     }
+}
+
+async fn handle_response<B, C>(
+    res: Response<()>,
+    body: B,
+    stream: &mut RequestStream<C>,
+    config: ServiceConfig,
+) -> Result<(), DispatchError>
+where
+    B: MessageBody,
+    B::Error: Into<Error>,
+
+    C: SendStream<Bytes>,
+{
+    let mut size = body.size();
+    let res = prepare_response(&config, res.head(), &mut size);
+
+    stream.send_response(res).await?;
+
+    actix_rt::pin!(body);
+
+    while let Some(res) = poll_fn(|cx| body.as_mut().poll_next(cx)).await {
+        let bytes = res.map_err(|err| err.into())?;
+        stream.send_data(bytes).await?
+    }
+
+    Ok(())
 }
 
 fn prepare_response(

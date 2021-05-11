@@ -15,6 +15,8 @@ pub enum Payload<S = PayloadStream> {
     None,
     H1(crate::h1::Payload),
     H2(crate::h2::Payload),
+    #[cfg(feature = "http3")]
+    H3(crate::h3::Payload),
     Stream(S),
 }
 
@@ -64,6 +66,8 @@ where
             Payload::None => Poll::Ready(None),
             Payload::H1(ref mut pl) => pl.readany(cx),
             Payload::H2(ref mut pl) => Pin::new(pl).poll_next(cx),
+            #[cfg(feature = "http3")]
+            Payload::H3(ref mut pl) => Pin::new(pl).poll_next(cx),
             Payload::Stream(ref mut pl) => Pin::new(pl).poll_next(cx),
         }
     }
